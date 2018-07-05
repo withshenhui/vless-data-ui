@@ -98,21 +98,55 @@
       </div>
     </el-dialog>
 
-    <el-dialog :title="textMap[dialogStatus]" :visible.sync="dialogFormVisible">
-      <el-form :rules="rules" ref="dataForm" :model="temp" label-position="left" label-width="90px" style='width: 400px; margin-left:50px;'>
-        <el-form-item :label="'项目编号'" prop="demandNo">
-          <el-input v-model="temp.demandNo"></el-input>
+    <el-dialog :title="textMap[dialogStatus]" :visible.sync="dialogFormVisible" width="70%" :show-close=false :close-on-click-modal=false :close-on-press-escape=false>
+      <el-form :rules="rules" ref="dataForm" :model="editTemp" label-position="left" label-width="90px" style='width: 70%; margin-left:50px;'>
+        <el-form-item :label="'数据类型'" prop="dataTypeName">
+          <el-select style="width:100%" ref="typeSelect" v-model="editTemp.dataTypeId" placeholder="Please select">
+            <el-option v-for="item in  dataTypeList" :key="item.id" :label="item.dataName" :value="item.id">
+            </el-option>
+          </el-select>
         </el-form-item>
-        <el-form-item :label="'项目名称'" prop="demandName">
-          <el-input v-model="temp.demandName"></el-input>
+        <el-form-item :label="'项目名称'" prop="projectName">
+          <el-select style="width:100%" ref="typeSelect" v-model="editTemp.projectId" placeholder="Please select">
+            <el-option v-for="item in  projectList" :key="item.id" :label="item.projectName+'('+item.projectNo+')'" :value="item.id">
+            </el-option>
+          </el-select>
         </el-form-item>
+        <el-form-item :label="'背景'">
+        <el-container v-for="(arr, index) in editTemp.detailResult" :key="arr.backgroundId">
+            <el-row :gutter="2" style="width:100%">
+              <el-col :span="9">
+                <el-select  ref="typeSelect" v-model="arr.label" placeholder="请选择" @change="testChange(arr)">
+                  <el-option v-for="item in backgroundList" :key="item.id" :label="item.backgroundName" :value="item.backgroundName">
+                  </el-option>
+                </el-select>
+              </el-col>
+              <el-col :span="11">
+                 <el-select v-model="arr.children2"  multiple placeholder="请选择">
+                  <el-option
+                    v-for="item in actionList"
+                    :key="item.id"
+                    :label="item.actionName"
+                    :value="item.id">
+                  </el-option>
+                </el-select>
+              </el-col>
+              <el-col :span="2">
+                  <el-button type="danger" size="mini" @click="handleDetailDel(index)">{{'删除'}}</el-button>
+              </el-col>
+              <el-col :span="2">
+                  <el-button v-if="index==0" type="success" size="mini" @click="handleDetailAdd()">{{'添加'}}</el-button>
+              </el-col>
+             
+            </el-row>
+        </el-container>
+      </el-form-item>
         <el-form-item :label="$t('table.memo')">
-          <el-input type="textarea" :autosize="{ minRows: 2, maxRows: 4}" placeholder="Please input" v-model="temp.memo">
-          </el-input>
+          <pre>{{editTemp.detailResult | json}}</pre>
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
-        <el-button @click="dialogFormVisible = false">{{$t('table.cancel')}}</el-button>
+        <el-button @click="handleUpdateCancel()">{{$t('table.cancel')}}</el-button>
         <el-button v-if="dialogStatus=='create'" type="primary" @click="createData">{{$t('table.confirm')}}</el-button>
         <el-button v-else type="primary" @click="updateData">{{$t('table.confirm')}}</el-button>
       </div>
@@ -123,9 +157,14 @@
 
 <script>
 import { fetchList, fetchDetail, createDemand, updateDemand, removeDemand } from '@/api/demand'
+import { fetchList as fetchActionList } from '@/api/action'
+import { fetchList as fetchBackgroundList } from '@/api/background'
+import { fetchList as fetchDataTypeList } from '@/api/dataType'
+import { fetchList as fetchProjectList } from '@/api/project'
 import waves from '@/directive/waves' // 水波纹指令
-import { parseTime } from '@/utils'
+import { parseTime,deepClone } from '@/utils'
 
+let initList=null
 export default {
   name: 'demandTable',
   directives: {
@@ -136,6 +175,10 @@ export default {
       tableKey: 0,
       list: null,
       total: null,
+      actionList: null,
+      backgroundList: null,
+      dataTypeList: null,
+      projectList: null,
       listLoading: true,
       listQuery: {
         page: 1,
@@ -159,6 +202,19 @@ export default {
         needTag:'',
         description:'',
         memo:'',
+        status:''
+      },
+      editTemp: {
+        id: undefined,
+        demandName:'',
+        projectName:'',
+        startDate:'',
+        endDate:'',
+        amount:'',
+        needTag:'',
+        description:'',
+        memo:'',
+        detailResult:[],
         status:''
       },
       dialogFormVisible: false,
@@ -193,7 +249,11 @@ export default {
     }
   },
   created() {
-    this.getList()
+    this.getList(),
+    this.getActionList(),
+    this.getBackgroundList(),
+    this.getDataTypeList(),
+    this.getProjectList()
   },
   methods: {
     getList() {
@@ -201,7 +261,28 @@ export default {
       fetchList(this.listQuery).then(response => {
         this.list = response.data.data
         this.total = response.data.count
+        initList=deepClone(this.list)
         this.listLoading = false
+      })
+    },
+    getActionList() {
+      fetchActionList(null).then(response => {
+        this.actionList = response.data.data
+      })
+    },
+    getBackgroundList() {
+      fetchBackgroundList(null).then(response => {
+        this.backgroundList = response.data.data
+      })
+    },
+    getDataTypeList() {
+      fetchDataTypeList(null).then(response => {
+        this.dataTypeList = response.data.data
+      })
+    },
+    getProjectList() {
+      fetchProjectList(null).then(response => {
+        this.projectList = response.data.data
       })
     },
     handleFilter() {
@@ -224,6 +305,28 @@ export default {
         demandNo:'',
         status: 'CREATED',
       }
+    },
+    testChange(arr){
+      //arr.backgroundId = parseInt($event.currentTarget.value) 
+      console.log(this.editTemp.detailResult)
+    },
+    handleDetailDel(index){
+      this.editTemp.detailResult.splice(index,1)
+    },
+    handleDetailAdd(){
+      this.editTemp.detailResult.push({
+        id: undefined,
+        demandId: undefined,
+        backgroundId: undefined,
+        label:'',
+        children:[],
+        children2:[]
+      })
+    },
+    handleUpdateCancel(){
+      this.dialogFormVisible = false
+      this.list=deepClone(initList)
+      console.log(initList)
     },
     handleCreate() {
       this.resetTemp()
@@ -262,7 +365,8 @@ export default {
        this.detailFormVisible = true
     },
     handleUpdate(row) {
-      this.temp = Object.assign({}, row) // copy obj
+      this.editTemp = Object.assign({}, row) // copy obj
+      console.log(row.detailResult)
       //console.log(this.temp.id)
       this.dialogStatus = 'update'
       this.dialogFormVisible = true
